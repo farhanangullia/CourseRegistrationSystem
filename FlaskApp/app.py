@@ -1,9 +1,15 @@
 from flask import Flask, jsonify, request 
+from flask_cors import CORS, cross_origin
 
 from __init__ import db, login_manager
+from sqlalchemy import inspect
+from sqlalchemy.exc import SQLAlchemyError
+
 # from views import view
 
 app = Flask(__name__)
+
+CORS(app)
 
 # Routing
 # app.register_blueprint(view)
@@ -16,7 +22,7 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://{username}:{password}@{hos
         password='password',
         host='localhost',
         port=5432,
-        database='postgres'
+        database='crsdb'
     )
 app.config['SECRET_KEY'] = 'A random key to use CRF for forms'
 
@@ -26,8 +32,25 @@ login_manager.init_app(app)
 
 coursesJson = {'course':['cs2102','cs1020']}
 
+
+# For resultproxy = db_session.execute(query)
+# d, a = {}, []
+# for rowproxy in resultproxy:
+#     # rowproxy.items() returns an array like [(key0, value0), (key1, value1)]
+#     for column, value in rowproxy.items():
+#         # build up the dictionary
+#         d = {**d, **{column: value}}
+#     a.append(d)
+
+# For resultproxy = db_session.execute(query).fetchone()
+# d = {}
+# for column, value in rowproxy.items():
+#         # build up the dictionary
+#   d = {**d, **{column: value}}
+
 @app.route('/getCourses', methods=['GET'])
 def get_courses():
+
     return jsonify(coursesJson)
 
 
@@ -40,7 +63,27 @@ def login():
     query = "SELECT * FROM users WHERE uname = '{}' AND pass = '{}'".format(username,password)
     exists_user = db.session.execute(query).fetchone()
     print(exists_user)
-    return 'Logged in'
+    d = {}
+    # rowproxy.items() returns an array like [(key0, value0), (key1, value1)]
+    for column, value in exists_user.items():
+        # build up the dictionary
+        d = {**d, **{column: value}}
+    print(d)
+    return jsonify(d)
+
+
+
+@app.route("/testSP", methods=["GET"])
+def testSP():
+    x = 2019
+    y = 1
+    try:
+        result = db.session.execute("SELECT switch_to_new_semester({},{})".format(x,y)).fetchone()
+        print(result)
+        print("success")
+    except SQLAlchemyError as e:
+        print("ERROR")
+        print(e)
 
 
 # query parameters for GET
