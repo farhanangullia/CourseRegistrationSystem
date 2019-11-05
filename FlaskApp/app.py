@@ -57,15 +57,16 @@ def get_courses():
 @app.route("/login", methods=["POST"])
 def login():
     req_data = request.get_json()
-    username = req_data['username']
+    accountid = req_data['accountid']
     password = req_data['password']
     print("checking db for login")
-    query = "SELECT * FROM users WHERE uname = '{}' AND pass = '{}'".format(username,password)
-    exists_user = db.session.execute(query).fetchone()
-    print(exists_user)
+    # query = "SELECT * FROM users WHERE uname = '{}' AND pass = '{}'".format(username,password)
+    query = "SELECT AC.accountID, CASE WHEN EXISTS(SELECT 1 FROM administrators a WHERE a.accountid = AC.accountid) THEN 'admin' WHEN EXISTS(SELECT 1 FROM students s WHERE s.accountid = AC.accountid) THEN 'student' ELSE 'teacher' END AS Type FROM accounts AC WHERE AC.accountid = '{}' AND AC.password = '{}';".format(accountid,password)
+    user = db.session.execute(query).fetchone()
+    print(user)
     d = {}
     # rowproxy.items() returns an array like [(key0, value0), (key1, value1)]
-    for column, value in exists_user.items():
+    for column, value in user.items():
         # build up the dictionary
         d = {**d, **{column: value}}
     print(d)
