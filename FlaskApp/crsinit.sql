@@ -91,7 +91,7 @@ CREATE TABLE Teaches (
 );
 
 CREATE TABLE Classes (
-    classID varchar(50),
+    classID int,
     moduleCode varchar(50),
     PRIMARY KEY(classID, moduleCode),
     FOREIGN KEY(moduleCode) REFERENCES Courses ON DELETE CASCADE
@@ -120,7 +120,7 @@ CREATE TABLE Bypasses (
 
 CREATE TABLE Attends (
     accountID varchar(50),
-    classID varchar(50),
+    classID int,
     moduleCode varchar(50),
     PRIMARY KEY(accountID, classID, moduleCode),
     FOREIGN KEY(accountID) REFERENCES Students,
@@ -129,7 +129,7 @@ CREATE TABLE Attends (
 
 CREATE TABLE TA (
     accountID varchar(50),
-    classID varchar(50),
+    classID int,
     moduleCode varchar(50),
     PRIMARY KEY(accountID, classID, moduleCode),
     FOREIGN KEY(accountID) REFERENCES Students,
@@ -208,15 +208,17 @@ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION process_enrollment_entry()
 RETURNS TRIGGER AS $$
 DECLARE adminID varchar(50);
+DECLARE classNum int;
 BEGIN
 RAISE NOTICE 'CHECKING IF BYPASS IS NEEDED';
 SELECT adminID INTO adminID
 FROM Courses
 WHERE NEW.moduleCode = Courses.moduleCode;
+SELECT floor(random() * (3) + 1)::int INTO classNum;
 IF NEW.isSuccess IS NULL THEN
 INSERT INTO Bypasses VALUES (NEW.accountID, NEW.moduleCode, adminID);
 ELSIF NEW.isSuccess = TRUE THEN
-INSERT INTO Attends VALUES (NEW.accountID, SELECT floor(random() * (3) + 1)::int, NEW.moduleCode);
+INSERT INTO Attends VALUES (NEW.accountID, classNum, NEW.moduleCode);
 END IF;
 RETURN NULL;
 END;
