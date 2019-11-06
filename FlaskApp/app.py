@@ -181,6 +181,33 @@ def retrieveMyStudentCourses():
     return jsonify(a)
 
 
+@app.route("/retrieveBypassRequests", methods=["POST"])
+def retrieveBypassRequests():
+    req_data = request.get_json()
+    accountid = req_data['accountid']
+    print(req_data)
+    print("retrieveMyStudentCourses")
+    query = """WITH P AS
+(SELECT accountID AS studentID, year * count(*) AS priority
+FROM Students NATURAL LEFT JOIN Completed
+GROUP BY accountID, year)
+SELECT studentID, moduleCode, name AS moduleName, currentSize, quota, priority
+FROM Bypasses NATURAL JOIN Courses NATURAL JOIN P
+WHERE isBypassed IS NULL AND '{}'= Bypasses.adminID
+ORDER BY priority DESC;""".format(accountid)
+    bypassRequests = db.session.execute(query)
+    # print(courses)
+    d, a = {}, []
+    for rowproxy in bypassRequests:
+        # rowproxy.items() returns an array like [(key0, value0), (key1, value1)]
+        for column, value in rowproxy.items():
+            # build up the dictionary
+            d = {**d, **{column: value}}
+        a.append(d)
+    # print(a)
+    return jsonify(a)
+
+
 
 @app.route("/testSP", methods=["GET"])
 def testSP():
