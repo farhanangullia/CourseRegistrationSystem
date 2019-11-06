@@ -73,6 +73,26 @@ def login():
     return jsonify(d)
 
 
+@app.route("/retrieveCoursesForRegistration", methods=["GET"])
+def retrieveCoursesForRegistration():
+    # req_data = request.get_json()
+    # accountid = req_data['accountid']
+    print("retrieveCoursesForRegistration")
+    # query = "SELECT * FROM users WHERE uname = '{}' AND pass = '{}'".format(username,password)
+    query = "SELECT * FROM courses;"
+    courses = db.session.execute(query)
+    print(courses)
+    d, a = {}, []
+    for rowproxy in courses:
+        # rowproxy.items() returns an array like [(key0, value0), (key1, value1)]
+        for column, value in rowproxy.items():
+            # build up the dictionary
+            d = {**d, **{column: value}}
+        a.append(d)
+    print(a)
+    return jsonify(a)
+
+
 
 @app.route("/testSP", methods=["GET"])
 def testSP():
