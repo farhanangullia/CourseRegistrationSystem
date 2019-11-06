@@ -14,9 +14,9 @@ DROP TABLE IF EXISTS TA CASCADE;
 DROP TABLE IF EXISTS Departments CASCADE;
 DROP TABLE IF EXISTS Semesters CASCADE;
 DROP TABLE IF EXISTS CurrentAY CASCADE;
-DROP PROCEDURE IF EXISTS add_student_account(id varchar(50), password varchar(50), name varchar(50), year int, isGraduate boolean);
-DROP PROCEDURE IF EXISTS add_admin_account(id varchar(50), password varchar(50), name varchar(50));
-DROP PROCEDURE IF EXISTS add_teacher_account(id varchar(50), password varchar(50), name varchar(50), departmentID varchar(50));
+DROP PROCEDURE IF EXISTS add_student_account(id varchar(50), password varchar(50), name varchar(50), year int, isGraduate boolean) CASCADE;
+DROP PROCEDURE IF EXISTS add_admin_account(id varchar(50), password varchar(50), name varchar(50)) CASCADE;
+DROP PROCEDURE IF EXISTS add_teacher_account(id varchar(50), password varchar(50), name varchar(50), departmentID varchar(50)) CASCADE;
 
 BEGIN;
 CREATE TABLE Departments (
