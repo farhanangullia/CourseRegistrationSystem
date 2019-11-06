@@ -5,6 +5,12 @@ from __init__ import db, login_manager
 from sqlalchemy import inspect
 from sqlalchemy.exc import SQLAlchemyError
 
+from sqlalchemy import *
+from sqlalchemy.ext.automap import automap_base
+from sqlalchemy.orm import create_session
+from sqlalchemy import create_engine
+from sqlalchemy import text
+
 # from views import view
 
 app = Flask(__name__)
@@ -30,7 +36,6 @@ app.config['SECRET_KEY'] = 'A random key to use CRF for forms'
 db.init_app(app)
 login_manager.init_app(app)
 
-coursesJson = {'course':['cs2102','cs1020']}
 
 
 # For resultproxy = db_session.execute(query)
@@ -112,18 +117,68 @@ def registerCourse():
     accountid = req_data['accountid']
     modulecode = req_data['modulecode']
     print("registerCourse")
+    print(accountid)
+    print(modulecode)
     # query = "SELECT * FROM users WHERE uname = '{}' AND pass = '{}'".format(username,password)
     # add_enrollment(id varchar(50), mod varchar(50))
+    
     try:
-        result = db.session.execute("SELECT switch_to_new_semester({},{})".format(x,y)).fetchone()
-        query = "SELECT * FROM courses;"
-        courses = db.session.execute(query)
-        print(courses)
+        print("debug 1")
+        # method 1
+        # db.session.execute(text("CALL add_enrollment(:param,:param2)"), {"param":accountid,"param2":modulecode})
+        # method 2 Not working
+        # db.session.execute("CALL add_enrollment('{}','{}')".format(accountid,modulecode))
+        # db.engine.raw_connection().commit()
+
+
+        # method 3
+        conn = db.engine.raw_connection()
+        cursor = conn.cursor()
+        cursor.execute("CALL add_enrollment('{}', '{}');".format(accountid,modulecode))
+        cursor.close()
+        conn.commit()
+
+        # # do the call. The actual parameter does not matter, could be ['lala'] as well
+        # results = conn.cursor().callproc('add_enrollment', ['e12348','FC101'])
+        # conn.close()   # commit
+
+        # conn.cursor().execute("CALL switch_to_new_semester(2021, 1);")
+
+
+        # print(results) # will print (<out param result>)
+        print("debug 2")
+        # query = "SELECT * FROM courses;"
+        # courses = db.session.execute(query)
+        # print(result)
+        
+        return jsonify({"status":"success"})
     except SQLAlchemyError as e:
         print("ERROR")
         print(e)
+        response = jsonify({"error":e})
    
-    
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    return response
+
+
+@app.route("/retrieveMyStudentCourses", methods=["POST"])
+def retrieveMyStudentCourses():
+    req_data = request.get_json()
+    accountid = req_data['accountid']
+    print(req_data)
+    print("retrieveMyStudentCourses")
+    query = "SELECT moduleCode,name,currentSize FROM Attends NATURAL JOIN courses WHERE accountid = '{}';".format(accountid)
+    courses = db.session.execute(query)
+    # print(courses)
+    d, a = {}, []
+    for rowproxy in courses:
+        # rowproxy.items() returns an array like [(key0, value0), (key1, value1)]
+        for column, value in rowproxy.items():
+            # build up the dictionary
+            d = {**d, **{column: value}}
+        a.append(d)
+    # print(a)
+    return jsonify(a)
 
 
 
