@@ -14,6 +14,13 @@ DROP TABLE IF EXISTS TA CASCADE;
 DROP TABLE IF EXISTS Departments CASCADE;
 DROP TABLE IF EXISTS Semesters CASCADE;
 DROP TABLE IF EXISTS CurrentAY CASCADE;
+DROP PROCEDURE IF EXISTS add_admin_account;
+DROP PROCEDURE IF EXISTS add_enrollment;
+DROP PROCEDURE IF EXISTS add_student_account;
+DROP PROCEDURE IF EXISTS add_teacher_account;
+DROP PROCEDURE IF EXISTS switch_to_new_semester;
+DROP FUNCTION IF EXISTS process_bypass_result;
+DROP FUNCTION IF EXISTS process_enrollment_entry;
 
 BEGIN;
 CREATE TABLE Departments (
