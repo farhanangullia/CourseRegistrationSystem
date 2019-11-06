@@ -73,15 +73,29 @@ def login():
     return jsonify(d)
 
 
-@app.route("/retrieveCoursesForRegistration", methods=["GET"])
+@app.route("/retrieveCoursesForRegistration", methods=["POST"])
 def retrieveCoursesForRegistration():
-    # req_data = request.get_json()
-    # accountid = req_data['accountid']
+    req_data = request.get_json()
+    accountid = req_data['accountid']
+    print(req_data)
     print("retrieveCoursesForRegistration")
-    # query = "SELECT * FROM users WHERE uname = '{}' AND pass = '{}'".format(username,password)
-    query = "SELECT * FROM courses;"
+    query = """SELECT moduleCode, name, currentSize, quota
+FROM Courses C
+WHERE CURRENT_DATE <= (SELECT registrationDeadline FROM CurrentAY)
+AND
+(EXISTS (SELECT 1 FROM Teaches T WHERE C.moduleCode = T.moduleCode AND T.year = (SELECT year FROM CurrentAY) AND T.semNum = (SELECT semNum FROM CurrentAY)))
+AND
+(NOT EXISTS (SELECT 1
+FROM (SELECT * FROM Completed WHERE '{0}' = Completed.accountID) AS Cm RIGHT JOIN Prerequisites P
+ON Cm.moduleCode = P.prereq
+WHERE C.moduleCode = P.moduleCode
+AND Cm.accountID IS NULL))
+AND
+(C.moduleCode NOT IN (SELECT moduleCode FROM Completed WHERE '{0}' = Completed.accountID))
+AND (SELECT isGraduate FROM Students WHERE '{0}' = Students.accountID) = C.isGraduateCourse;
+""".format(accountid)
     courses = db.session.execute(query)
-    print(courses)
+    # print(courses)
     d, a = {}, []
     for rowproxy in courses:
         # rowproxy.items() returns an array like [(key0, value0), (key1, value1)]
@@ -89,8 +103,27 @@ def retrieveCoursesForRegistration():
             # build up the dictionary
             d = {**d, **{column: value}}
         a.append(d)
-    print(a)
+    # print(a)
     return jsonify(a)
+
+@app.route("/registerCourse", methods=["POST"])
+def registerCourse():
+    req_data = request.get_json()
+    accountid = req_data['accountid']
+    modulecode = req_data['modulecode']
+    print("registerCourse")
+    # query = "SELECT * FROM users WHERE uname = '{}' AND pass = '{}'".format(username,password)
+    # add_enrollment(id varchar(50), mod varchar(50))
+    try:
+        result = db.session.execute("SELECT switch_to_new_semester({},{})".format(x,y)).fetchone()
+        query = "SELECT * FROM courses;"
+        courses = db.session.execute(query)
+        print(courses)
+    except SQLAlchemyError as e:
+        print("ERROR")
+        print(e)
+   
+    
 
 
 
