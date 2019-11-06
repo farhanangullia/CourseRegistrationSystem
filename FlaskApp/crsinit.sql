@@ -185,6 +185,48 @@ END;
 $$
 LANGUAGE plpgsql;
 
+CREATE OR REPLACE PROCEDURE add_enrollment(id varchar(50), mod varchar(50), dateRegistered date)
+AS $$
+DECLARE currentSize numeric;
+DECLARE quota numeric;
+BEGIN
+SELECT currentSize INTO currentSize
+FROM Courses
+WHERE mod = Courses.moduleCode;
+SELECT quota INTO quota
+FROM Courses
+WHERE mod = Courses.moduleCode;
+IF currentSize >= quota THEN
+INSERT INTO Enrolls VALUES(id, mod, dateRegistered, NULL); -- means a bypass is required
+ELSE
+INSERT INTO Enrolls VALUES(id, mod, dateRegistered, TRUE);
+END IF;
+END;
+$$
+LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION process_enrollment_entry()
+RETURNS TRIGGER AS $$
+DECLARE adminID varchar(50);
+BEGIN
+RAISE NOTICE 'CHECKING IF BYPASS IS NEEDED';
+SELECT adminID INTO adminID
+FROM Courses
+WHERE NEW.moduleCode = Courses.moduleCode;
+IF NEW.isSuccess IS NULL THEN
+INSERT INTO Bypasses VALUES (NEW.accountID, NEW.moduleCode, adminID);
+ELSIF NEW.isSuccess = TRUE THEN
+INSERT INTO Attends VALUES (NEW.accountID, SELECT floor(random() * (3) + 1)::int, NEW.moduleCode);
+END IF;
+RETURN NULL;
+END;
+$$
+LANGUAGE plpgsql;
+CREATE TRIGGER new_enrollment_entry
+AFTER INSERT OR UPDATE ON Enrolls
+FOR EACH ROW
+EXECUTE PROCEDURE process_enrollment_entry();
+
 -- if true, set enroll entry to success
 -- if false, then set enroll entry to fail
 -- look thru Courses and set a successful enroll entry for the student to a course that he meets all prereqs for and also has lowest currentSize
@@ -227,83 +269,6 @@ AFTER UPDATE ON Bypasses
 FOR EACH ROW
 EXECUTE PROCEDURE process_bypass_result();
 
--- check that registration time is before registration deadline
--- check that there is a Teacher Teaching this Course this year and semNum
--- check that all prereqs are met
-CREATE OR REPLACE FUNCTION insert_enroll_if_valid()
-RETURNS TRIGGER AS $$
-DECLARE registrationDeadline date;
-DECLARE currentYear int;
-DECLARE currentSem int;
-BEGIN
-RAISE NOTICE 'CHECKING IF ENROLL ENTRY IS VALID';
-SELECT registrationDeadline INTO registrationDeadline
-FROM CurrentAY;
-SELECT year INTO currentYear
-FROM CurrentAY;
-SELECT semNum INTO currentSem
-FROM CurrentAY;
-IF
-(NEW.dateRegistered <= registrationDeadline)
-AND
-(EXISTS (SELECT 1 FROM Teaches T WHERE NEW.moduleCode = T.moduleCode AND T.year = currentYear AND T.semNum = currentSem))
-AND
-(NOT EXISTS (SELECT 1
-FROM (SELECT * FROM Completed WHERE NEW.accountID = Completed.accountID) AS C RIGHT JOIN Prerequisites P
-ON C.moduleCode = P.prereq
-WHERE NEW.moduleCode = P.moduleCode
-AND C.accountID IS NULL))
-THEN RETURN NEW;
-ELSE RETURN NULL;
-END IF;
-END;
-$$
-LANGUAGE plpgsql;
-CREATE TRIGGER check_validity_of_enrollment
-BEFORE INSERT OR UPDATE ON Enrolls
-FOR EACH ROW
-EXECUTE PROCEDURE insert_enroll_if_valid();
-
-CREATE OR REPLACE FUNCTION insert_bypass_if_required()
-RETURNS TRIGGER AS $$
-DECLARE adminID varchar(50);
-BEGIN
-RAISE NOTICE 'CHECKING IF BYPASS IS NEEDED';
-SELECT adminID INTO adminID
-FROM Courses
-WHERE NEW.moduleCode = Courses.moduleCode;
-IF NEW.isSuccess IS NULL THEN
-INSERT INTO Bypasses VALUES (NEW.accountID, NEW.moduleCode, adminID);
-END IF;
-RETURN NULL;
-END;
-$$
-LANGUAGE plpgsql;
-CREATE TRIGGER new_enrollment_entry
-AFTER INSERT ON Enrolls
-FOR EACH ROW
-EXECUTE PROCEDURE insert_bypass_if_required();
-
-CREATE OR REPLACE PROCEDURE add_enrollment(id varchar(50), mod varchar(50), dateRegistered date)
-AS $$
-DECLARE currentSize numeric;
-DECLARE quota numeric;
-BEGIN
-SELECT currentSize INTO currentSize
-FROM Courses
-WHERE mod = Courses.moduleCode;
-SELECT quota INTO quota
-FROM Courses
-WHERE mod = Courses.moduleCode;
-IF currentSize >= quota THEN
-INSERT INTO Enrolls VALUES(id, mod, dateRegistered, NULL); -- means a bypass is required
-ELSE
-INSERT INTO Enrolls VALUES(id, mod, dateRegistered, TRUE);
-END IF;
-END;
-$$
-LANGUAGE plpgsql;
-
 CREATE OR REPLACE PROCEDURE switch_to_new_semester(y int, s int)
 AS $$
 BEGIN
@@ -312,8 +277,6 @@ DELETE FROM Classes;
 END;
 $$
 LANGUAGE plpgsql;
-
--- attending class trigger -- leave to meeting, idk how implement
 
 INSERT INTO SEMESTERS VALUES (1920, 2);
 INSERT INTO SEMESTERS VALUES (2021, 1);
@@ -376,14 +339,14 @@ INSERT INTO Prerequisites VALUES ('CS201', 'CS102');
 INSERT INTO Prerequisites VALUES ('DS102', 'DS101');
 INSERT INTO Prerequisites VALUES ('FC102', 'FC101');
 
-INSERT INTO Teaches VALUES('t010', 'CS101', 1920, 2);
-INSERT INTO Teaches VALUES('t010', 'CS102', 1920, 2);
-INSERT INTO Teaches VALUES('t011', 'CS103', 1920, 2);
+INSERT INTO Teaches VALUES('t011', 'CS101', 1920, 2);
+INSERT INTO Teaches VALUES('t012', 'CS102', 1920, 2);
+INSERT INTO Teaches VALUES('t013', 'CS103', 1920, 2);
 INSERT INTO Teaches VALUES('t011', 'DS101', 1920, 2);
-INSERT INTO Teaches VALUES('t011', 'DS102', 1920, 2);
-INSERT INTO Teaches VALUES('t011', 'FC101', 1920, 2);
-INSERT INTO Teaches VALUES('t011', 'FC102', 2021, 1);
-INSERT INTO Teaches VALUES('t011', 'MG101', 1920, 2);
+INSERT INTO Teaches VALUES('t012', 'DS102', 1920, 2);
+INSERT INTO Teaches VALUES('t010', 'FC101', 1920, 2);
+INSERT INTO Teaches VALUES('t010', 'FC102', 2021, 1);
+INSERT INTO Teaches VALUES('t098', 'MG101', 1920, 2);
 
 INSERT INTO Classes VALUES ('1', 'CS101');
 INSERT INTO Classes VALUES ('2', 'CS101');
@@ -417,6 +380,20 @@ INSERT INTO TA VALUES ('e12350', '1', 'CS101');
 INSERT INTO TA VALUES ('e12350', '2', 'CS101');
 INSERT INTO TA VALUES ('e12350', '3', 'CS101');
 INSERT INTO TA VALUES ('e12351', '1', 'CS102');
-INSERT INTO TA VALUES ('e12354', '2', 'CS102');
-INSERT INTO TA VALUES ('e12351', '1', 'CS103');
-INSERT INTO TA VALUES ('e12354', '2', 'CS103');
+INSERT INTO TA VALUES ('e12351', '2', 'CS102');
+INSERT INTO TA VALUES ('e12351', '3', 'CS102');
+INSERT INTO TA VALUES ('e12352', '1', 'CS103');
+INSERT INTO TA VALUES ('e12352', '2', 'CS103');
+INSERT INTO TA VALUES ('e12352', '3', 'CS103');
+INSERT INTO TA VALUES ('e12355', '1', 'DS101');
+INSERT INTO TA VALUES ('e12355', '2', 'DS101');
+INSERT INTO TA VALUES ('e12355', '3', 'DS101');
+INSERT INTO TA VALUES ('e12356', '1', 'DS102');
+INSERT INTO TA VALUES ('e12356', '2', 'DS102');
+INSERT INTO TA VALUES ('e12356', '3', 'DS102');
+INSERT INTO TA VALUES ('e12354', '1', 'FC101');
+INSERT INTO TA VALUES ('e12354', '2', 'FC101');
+INSERT INTO TA VALUES ('e12354', '3', 'FC101');
+INSERT INTO TA VALUES ('e12353', '1', 'MG101');
+INSERT INTO TA VALUES ('e12353', '2', 'MG101');
+INSERT INTO TA VALUES ('e12353', '3', 'MG101');
