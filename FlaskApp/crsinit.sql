@@ -14,6 +14,9 @@ DROP TABLE IF EXISTS TA CASCADE;
 DROP TABLE IF EXISTS Departments CASCADE;
 DROP TABLE IF EXISTS Semesters CASCADE;
 DROP TABLE IF EXISTS CurrentAY CASCADE;
+DROP PROCEDURE IF EXISTS add_student_account(id varchar(50), password varchar(50), name varchar(50), year int, isGraduate boolean);
+DROP PROCEDURE IF EXISTS add_admin_account(id varchar(50), password varchar(50), name varchar(50));
+DROP PROCEDURE IF EXISTS add_teacher_account(id varchar(50), password varchar(50), name varchar(50), departmentID varchar(50));
 
 BEGIN;
 CREATE TABLE Departments (
@@ -35,8 +38,10 @@ CREATE TABLE Accounts (
 CREATE TABLE Students (
     accountID varchar(50) PRIMARY KEY,
     name varchar(50) NOT NULL,
+    year int NOT NULL,
     isGraduate boolean NOT NULL,
-    FOREIGN KEY(accountID) REFERENCES Accounts
+    FOREIGN KEY(accountID) REFERENCES Accounts,
+    CHECK (year <= 6 AND year >= 1)
 );
 
 CREATE TABLE Administrators (
@@ -146,13 +151,13 @@ CREATE TABLE CurrentAY (
 );
 COMMIT;
 
-CREATE OR REPLACE PROCEDURE add_student_account(id varchar(50), password varchar(50), name varchar(50), isGraduate boolean)
+CREATE OR REPLACE PROCEDURE add_student_account(id varchar(50), password varchar(50), name varchar(50), year int, isGraduate boolean)
 AS $$
 BEGIN
 IF id NOT IN (SELECT accountID FROM Administrators) AND id NOT IN (SELECT accountID FROM Teachers)
 THEN
 INSERT INTO Accounts VALUES (id, password);
-INSERT INTO Students VALUES (id, name, isGraduate);
+INSERT INTO Students VALUES (id, name, year, isGraduate);
 ELSE
 END IF;
 END;
@@ -248,7 +253,7 @@ UPDATE Enrolls SET isSuccess = TRUE WHERE NEW.studentID = Enrolls.accountID AND 
 RETURN NEW;
 ELSE
 RAISE NOTICE 'BYPASS IS DENIED, STUDENT IS AUTO-ALLOCATED';
-UPDATE Enrolls SET isSuccess = FALSE WHERE NEW.studentID = Enrolls.acoountID AND NEW.moduleCode = Enrolls.moduleCode;
+UPDATE Enrolls SET isSuccess = FALSE WHERE NEW.studentID = Enrolls.accountID AND NEW.moduleCode = Enrolls.moduleCode;
 SELECT year INTO currentYear
 FROM CurrentAY;
 SELECT semNum INTO currentSem
@@ -275,11 +280,12 @@ AFTER UPDATE ON Bypasses
 FOR EACH ROW
 EXECUTE PROCEDURE process_bypass_result();
 
-CREATE OR REPLACE PROCEDURE switch_to_new_semester(y int, s int)
+CREATE OR REPLACE PROCEDURE switch_to_new_semester(y int, s int, newDeadline date)
 AS $$
 BEGIN
-UPDATE CurrentAY SET year = y, semNum = s;
-DELETE FROM Classes;
+DELETE FROM Attends;
+DELETE FROM Teaches WHERE year = (SELECT year FROM CurrentAY) AND semNum = (SELECT semNum FROM CurrentAY);
+UPDATE CurrentAY SET year = y, semNum = s, registrationDeadline = newDeadline;
 END;
 $$
 LANGUAGE plpgsql;
@@ -297,18 +303,18 @@ INSERT INTO Departments VALUES ('med', 'Medicine');
 INSERT INTO Departments VALUES ('fass', 'Arts');
 INSERT INTO Departments VALUES ('mgc', 'Magic');
 
-CALL add_student_account('e12345', '123', 'Sam', false);
-CALL add_student_account('e12346', '123', 'Bob', false);
-CALL add_student_account('e12347', '123', 'Jack', false);
-CALL add_student_account('e12348', '123', 'Dan', false);
-CALL add_student_account('e12349', '123', 'Jon', false);
-CALL add_student_account('e12350', '123', 'Bij', false);
-CALL add_student_account('e12351', '123', 'Pok', true);
-CALL add_student_account('e12352', '123', 'Bun', false);
-CALL add_student_account('e12353', '123', 'Dan', false);
-CALL add_student_account('e12354', '123', 'Voldemort', true);
-CALL add_student_account('e12355', '123', 'Burg', false);
-CALL add_student_account('e12356', '123', 'Saitama', false);
+CALL add_student_account('e12345', '123', 'Sam', 2, false);
+CALL add_student_account('e12346', '123', 'Bob', 2, false);
+CALL add_student_account('e12347', '123', 'Jack', 3, false);
+CALL add_student_account('e12348', '123', 'Dan', 4, false);
+CALL add_student_account('e12349', '123', 'Jon', 1, false);
+CALL add_student_account('e12350', '123', 'Bij', 1, false);
+CALL add_student_account('e12351', '123', 'Pok', 6, true);
+CALL add_student_account('e12352', '123', 'Bun', 1, false);
+CALL add_student_account('e12353', '123', 'Dan', 1, false);
+CALL add_student_account('e12354', '123', 'Voldemort', 5, true);
+CALL add_student_account('e12355', '123', 'Burg', 1, false);
+CALL add_student_account('e12356', '123', 'Saitama', 1, false);
 
 CALL add_admin_account('a006', '123', 'Sun');
 CALL add_admin_account('a009', '123', 'Laksa');
@@ -321,7 +327,7 @@ CALL add_teacher_account('t011', '123', 'Prof Kong', 'soc');
 CALL add_teacher_account('t010', '123', 'Prof Dude', 'lgng');
 CALL add_teacher_account('t098', '123', 'Dumbledore', 'mgc');
 
-INSERT INTO Courses VALUES ('CS101', 'Intro to Programming', 'a003', false, 70, 90);
+INSERT INTO Courses VALUES ('CS101', 'Intro to Programming', 'a003', false, 90, 90); -- oversubscribed
 INSERT INTO Courses VALUES ('CS102', 'Intermediate Programming', 'a003', false, 70, 80);
 INSERT INTO Courses VALUES ('CS103', 'Advanced Programming', 'a006', true, 40, 50);
 INSERT INTO Courses VALUES ('DS101', 'Intro to Data Science', 'a006', false, 110, 130);
