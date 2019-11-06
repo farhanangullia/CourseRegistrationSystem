@@ -185,21 +185,21 @@ END;
 $$
 LANGUAGE plpgsql;
 
-CREATE OR REPLACE PROCEDURE add_enrollment(id varchar(50), mod varchar(50), dateRegistered date)
+CREATE OR REPLACE PROCEDURE add_enrollment(id varchar(50), mod varchar(50))
 AS $$
-DECLARE currentSize numeric;
-DECLARE quota numeric;
+DECLARE currSize numeric;
+DECLARE n numeric;
 BEGIN
-SELECT currentSize INTO currentSize
+SELECT currentSize INTO currSize
 FROM Courses
 WHERE mod = Courses.moduleCode;
-SELECT quota INTO quota
+SELECT quota INTO n
 FROM Courses
 WHERE mod = Courses.moduleCode;
-IF currentSize >= quota THEN
-INSERT INTO Enrolls VALUES(id, mod, dateRegistered, NULL); -- means a bypass is required
+IF currSize >= n THEN
+INSERT INTO Enrolls VALUES(id, mod, CURRENT_DATE, NULL); -- means a bypass is required
 ELSE
-INSERT INTO Enrolls VALUES(id, mod, dateRegistered, TRUE);
+INSERT INTO Enrolls VALUES(id, mod, CURRENT_DATE, TRUE);
 END IF;
 END;
 $$
@@ -207,17 +207,19 @@ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION process_enrollment_entry()
 RETURNS TRIGGER AS $$
-DECLARE adminID varchar(50);
+DECLARE adID varchar(50);
 DECLARE classNum int;
 BEGIN
 RAISE NOTICE 'CHECKING IF BYPASS IS NEEDED';
-SELECT adminID INTO adminID
+SELECT adminID INTO adID
 FROM Courses
 WHERE NEW.moduleCode = Courses.moduleCode;
 SELECT floor(random() * (3) + 1)::int INTO classNum;
 IF NEW.isSuccess IS NULL THEN
-INSERT INTO Bypasses VALUES (NEW.accountID, NEW.moduleCode, adminID);
+RAISE NOTICE 'BYPASS IS NEEDED';
+INSERT INTO Bypasses VALUES (NEW.accountID, NEW.moduleCode, adID);
 ELSIF NEW.isSuccess = TRUE THEN
+RAISE NOTICE 'BYPASS IS NOT NEEDED, STUDENT CAN ATTEND';
 INSERT INTO Attends VALUES (NEW.accountID, classNum, NEW.moduleCode);
 END IF;
 RETURN NULL;
@@ -241,10 +243,12 @@ BEGIN
 RAISE NOTICE 'PROCESSING BYPASS RESULT';
 IF (NEW.isBypassed = TRUE)
 THEN
-UPDATE Enrolls SET isSuccess = TRUE WHERE NEW.accountID = Enrolls.accountID AND NEW.moduleCode = Enrolls.moduleCode;
+RAISE NOTICE 'BYPASS IS ACCEPTED';
+UPDATE Enrolls SET isSuccess = TRUE WHERE NEW.studentID = Enrolls.accountID AND NEW.moduleCode = Enrolls.moduleCode;
 RETURN NEW;
 ELSE
-UPDATE Enrolls SET isSuccess = FALSE WHERE NEW.accountID = Enrolls.accountID AND NEW.moduleCode = Enrolls.moduleCode;
+RAISE NOTICE 'BYPASS IS DENIED, STUDENT IS AUTO-ALLOCATED';
+UPDATE Enrolls SET isSuccess = FALSE WHERE NEW.studentID = Enrolls.acoountID AND NEW.moduleCode = Enrolls.moduleCode;
 SELECT year INTO currentYear
 FROM CurrentAY;
 SELECT semNum INTO currentSem
@@ -253,7 +257,7 @@ SELECT moduleCode INTO newModule
 FROM Courses
 WHERE 
 NOT EXISTS (SELECT 1
-FROM (SELECT * FROM Completed WHERE NEW.accountID = Completed.accountID) AS C RIGHT JOIN Prerequisites P
+FROM (SELECT * FROM Completed WHERE NEW.studentID = Completed.accountID) AS C RIGHT JOIN Prerequisites P
 ON C.moduleCode = P.prereq
 WHERE Courses.moduleCode = P.moduleCode
 AND C.accountID IS NULL)
