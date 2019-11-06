@@ -53,10 +53,6 @@ login_manager.init_app(app)
 #         # build up the dictionary
 #   d = {**d, **{column: value}}
 
-@app.route('/getCourses', methods=['GET'])
-def get_courses():
-
-    return jsonify(coursesJson)
 
 
 @app.route("/login", methods=["POST"])
@@ -206,6 +202,22 @@ ORDER BY priority DESC;""".format(accountid)
         a.append(d)
     # print(a)
     return jsonify(a)
+
+@app.route("/updateBypassRequest", methods=["POST"])
+def updateBypassRequest():
+    req_data = request.get_json()
+    studentid = req_data['studentid']
+    isBypassed = req_data['isBypassed']
+    print(req_data)
+    print("updateBypassRequest")
+    query = """UPDATE Bypasses SET isBypassed = {} WHERE '{}'= Bypasses.studentID;""".format(isBypassed,studentid)
+    conn = db.engine.raw_connection()
+    cursor = conn.cursor()
+    cursor.execute(query)
+    cursor.close()
+    conn.commit()
+    response = jsonify({"status":"success"})
+    return response
 
 
 
