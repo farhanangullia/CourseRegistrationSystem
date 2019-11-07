@@ -39,8 +39,10 @@ CREATE TABLE Students (
     accountID varchar(50) PRIMARY KEY,
     name varchar(50) NOT NULL,
     year int NOT NULL,
+    departmentID varchar(50) NOT NULL,
     isGraduate boolean NOT NULL,
     FOREIGN KEY(accountID) REFERENCES Accounts,
+    FOREIGN KEY(departmentID) REFERENCES Departments,
     CHECK (year <= 6 AND year >= 1)
 );
 
@@ -61,12 +63,14 @@ CREATE TABLE Teachers (
 CREATE TABLE Courses (
     moduleCode varchar(50),
     name varchar(50) NOT NULL,
+    departmentID varchar(50),
     adminID varchar(50) NOT NULL,
     isGraduateCourse boolean NOT NULL,
     currentSize int NOT NULL DEFAULT 0,
     quota int NOT NULL,
     PRIMARY KEY(moduleCode),
-    FOREIGN KEY(adminID) REFERENCES Administrators
+    FOREIGN KEY(adminID) REFERENCES Administrators,
+    FOREIGN KEY(departmentID) REFERENCES Departments
 );
 
 CREATE TABLE Completed (
@@ -151,13 +155,13 @@ CREATE TABLE CurrentAY (
 );
 COMMIT;
 
-CREATE OR REPLACE PROCEDURE add_student_account(id varchar(50), password varchar(50), name varchar(50), year int, isGraduate boolean)
+CREATE OR REPLACE PROCEDURE add_student_account(id varchar(50), password varchar(50), name varchar(50), year int, dept varchar(50), isGraduate boolean)
 AS $$
 BEGIN
 IF id NOT IN (SELECT accountID FROM Administrators) AND id NOT IN (SELECT accountID FROM Teachers)
 THEN
 INSERT INTO Accounts VALUES (id, password);
-INSERT INTO Students VALUES (id, name, year, isGraduate);
+INSERT INTO Students VALUES (id, name, year, dept, isGraduate);
 ELSE
 END IF;
 END;
@@ -346,18 +350,18 @@ INSERT INTO Departments VALUES ('med', 'Medicine');
 INSERT INTO Departments VALUES ('fass', 'Arts');
 INSERT INTO Departments VALUES ('mgc', 'Magic');
 
-CALL add_student_account('e12345', '123', 'Sam', 2, false);
-CALL add_student_account('e12346', '123', 'Bob', 2, false);
-CALL add_student_account('e12347', '123', 'Jack', 3, false);
-CALL add_student_account('e12348', '123', 'Dan', 4, false);
-CALL add_student_account('e12349', '123', 'Jon', 1, false);
-CALL add_student_account('e12350', '123', 'Bij', 1, false);
-CALL add_student_account('e12351', '123', 'Pok', 6, true);
-CALL add_student_account('e12352', '123', 'Bun', 1, false);
-CALL add_student_account('e12353', '123', 'Dan', 6, true);
-CALL add_student_account('e12354', '123', 'Voldemort', 5, true);
-CALL add_student_account('e12355', '123', 'Burg', 1, false);
-CALL add_student_account('e12356', '123', 'Saitama', 1, false);
+CALL add_student_account('e12345', '123', 'Sam', 2, 'egn', false);
+CALL add_student_account('e12346', '123', 'Bob', 2, 'egn', false);
+CALL add_student_account('e12347', '123', 'Jack', 3, 'sci', false);
+CALL add_student_account('e12348', '123', 'Dan', 4, 'sci', false);
+CALL add_student_account('e12349', '123', 'Jon', 1, 'fass', false);
+CALL add_student_account('e12350', '123', 'Bij', 1, 'soc', false);
+CALL add_student_account('e12351', '123', 'Pok', 6, 'soc', true);
+CALL add_student_account('e12352', '123', 'Bun', 1, 'soc', false);
+CALL add_student_account('e12353', '123', 'Dan', 6, 'med', true);
+CALL add_student_account('e12354', '123', 'Voldemort', 5, 'mgc', true);
+CALL add_student_account('e12355', '123', 'Burg', 1, 'soc', false);
+CALL add_student_account('e12356', '123', 'Saitama', 1, 'soc', false);
 
 CALL add_admin_account('a006', '123', 'Sun');
 CALL add_admin_account('a009', '123', 'Laksa');
@@ -370,15 +374,15 @@ CALL add_teacher_account('t011', '123', 'Prof Kong', 'soc');
 CALL add_teacher_account('t010', '123', 'Prof Dude', 'lgng');
 CALL add_teacher_account('t098', '123', 'Dumbledore', 'mgc');
 
-INSERT INTO Courses VALUES ('CS101', 'Intro to Programming', 'a003', false, 90, 90); -- oversubscribed
-INSERT INTO Courses VALUES ('CS102', 'Intermediate Programming', 'a003', false, 70, 80);
-INSERT INTO Courses VALUES ('CS103', 'Advanced Programming', 'a006', true, 40, 50);
-INSERT INTO Courses VALUES ('DS101', 'Intro to Data Science', 'a006', false, 110, 130);
-INSERT INTO Courses VALUES ('DS102', 'Intermediate Data Science', 'a009', false, 120, 110); -- oversubscribed
-INSERT INTO Courses VALUES ('FC101', 'French 1', 'a009', false, 50, 60);
-INSERT INTO Courses VALUES ('FC102', 'French 2', 'a012', false, 0, 50);
-INSERT INTO Courses VALUES ('MG101', 'Intro to Magic', 'a012', true, 3, 3); -- oversubscribed
-INSERT INTO Courses VALUES ('CS201', 'Intro to Computational Bio', 'a012', false, 0, 20);
+INSERT INTO Courses VALUES ('CS101', 'Intro to Programming', 'soc', 'a003', false, 90, 90); -- oversubscribed
+INSERT INTO Courses VALUES ('CS102', 'Intermediate Programming', 'soc', 'a003', false, 70, 80);
+INSERT INTO Courses VALUES ('CS103', 'Advanced Programming', 'soc', 'a006', true, 40, 50);
+INSERT INTO Courses VALUES ('DS101', 'Intro to Data Science', 'sci', 'a006', false, 110, 130);
+INSERT INTO Courses VALUES ('DS102', 'Intermediate Data Science', 'sci', 'a009', false, 120, 110); -- oversubscribed
+INSERT INTO Courses VALUES ('FC101', 'French 1', 'lgng', 'a009', false, 50, 60);
+INSERT INTO Courses VALUES ('FC102', 'French 2', 'lgng', 'a012', false, 0, 50);
+INSERT INTO Courses VALUES ('MG101', 'Intro to Magic', 'mgc', 'a012', true, 3, 3); -- oversubscribed
+INSERT INTO Courses VALUES ('CS201', 'Intro to Computational Bio', 'soc', 'a012', false, 0, 20);
 
 INSERT INTO Completed VALUES ('e12348', 'DS101');
 INSERT INTO Completed VALUES ('e12348', 'DS102');
@@ -395,6 +399,8 @@ INSERT INTO Completed VALUES ('e12356', 'DS101');
 INSERT INTO Completed VALUES ('e12356', 'DS102');
 INSERT INTO Completed VALUES ('e12345', 'CS101');
 INSERT INTO Completed VALUES ('e12346', 'CS101');
+INSERT INTO Completed VALUES ('e12347', 'CS101');
+INSERT INTO Completed VALUES ('e12347', 'CS102');
 INSERT INTO Completed VALUES ('e12347', 'CS201');
 INSERT INTO Completed VALUES ('e12354', 'FC101');
 INSERT INTO Completed VALUES ('e12353', 'MG101');
