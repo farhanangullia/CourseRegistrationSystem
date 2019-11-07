@@ -17,7 +17,7 @@ DROP TABLE IF EXISTS CurrentAY CASCADE;
 DROP PROCEDURE IF EXISTS add_student_account(id varchar(50), password varchar(50), name varchar(50), year int, isGraduate boolean) CASCADE;
 DROP PROCEDURE IF EXISTS add_admin_account(id varchar(50), password varchar(50), name varchar(50)) CASCADE;
 DROP PROCEDURE IF EXISTS add_teacher_account(id varchar(50), password varchar(50), name varchar(50), departmentID varchar(50)) CASCADE;
-
+DROP PROCEDURE IF EXISTS switch_to_new_semester(y int, s int) CASCADE;
 BEGIN;
 CREATE TABLE Departments (
     departmentID varchar(50) PRIMARY KEY,
@@ -127,7 +127,7 @@ CREATE TABLE Attends (
     accountID varchar(50),
     classID int,
     moduleCode varchar(50),
-    PRIMARY KEY(accountID, classID, moduleCode),
+    PRIMARY KEY(accountID, moduleCode),
     FOREIGN KEY(accountID) REFERENCES Students,
     FOREIGN KEY(classID, moduleCode) REFERENCES Classes
 );
@@ -147,7 +147,7 @@ CREATE TABLE CurrentAY (
     semNum int NOT NULL,
     registrationDeadline date NOT NULL,
     FOREIGN KEY(year, semNum) REFERENCES Semesters,
-    CHECK (lock = 'X')
+    CHECK (lock = 'X' AND (semNum = 1 OR semNum = 2))
 );
 COMMIT;
 
@@ -226,6 +226,7 @@ INSERT INTO Bypasses VALUES (NEW.accountID, NEW.moduleCode, adID);
 ELSIF NEW.isSuccess = TRUE THEN
 RAISE NOTICE 'BYPASS IS NOT NEEDED, STUDENT CAN ATTEND';
 INSERT INTO Attends VALUES (NEW.accountID, classNum, NEW.moduleCode);
+UPDATE Courses SET currentSize = currentSize + 1 WHERE moduleCode = NEW.moduleCode;
 END IF;
 RETURN NULL;
 END;
@@ -280,10 +281,52 @@ AFTER UPDATE ON Bypasses
 FOR EACH ROW
 EXECUTE PROCEDURE process_bypass_result();
 
-CREATE OR REPLACE PROCEDURE switch_to_new_semester(y int, s int, newDeadline date)
-AS $$
+CREATE OR REPLACE FUNCTION allow_TA_entry_if_valid()
+RETURNS TRIGGER AS $$
 BEGIN
+RAISE NOTICE 'CHECKING NEW TA ENTRY';
+IF (EXISTS (SELECT 1 FROM Completed WHERE NEW.moduleCode = Completed.moduleCode AND NEW.accountID = Completed.accountID))
+THEN
+RAISE NOTICE 'VALID TA ENTRY';
+RETURN NEW;
+ELSE
+RAISE NOTICE 'INVALID TA ENTRY';
+RETURN NULL;
+END IF;
+END;
+$$
+LANGUAGE plpgsql;
+CREATE TRIGGER new_TA_entry
+BEFORE INSERT OR UPDATE ON TA
+FOR EACH ROW
+EXECUTE PROCEDURE allow_TA_entry_if_valid();
+
+CREATE OR REPLACE PROCEDURE switch_to_new_semester(y int, s int)
+AS $$
+DECLARE newDeadline date;
+BEGIN
+SELECT (CASE WHEN s = 1 THEN '2019-12-31' ELSE '2019-07-31' END) INTO newDeadline;
+INSERT INTO Completed
+SELECT accountID, moduleCode
+FROM Attends;
 DELETE FROM Attends;
+DELETE FROM Enrolls;
+DELETE FROM Teaches WHERE year = (SELECT year FROM CurrentAY) AND semNum = (SELECT semNum FROM CurrentAY);
+UPDATE CurrentAY SET year = y, semNum = s, registrationDeadline = newDeadline;
+END;
+$$
+LANGUAGE plpgsql;
+
+CREATE OR REPLACE PROCEDURE switch_to_new_semester(y int, s int)
+AS $$
+DECLARE newDeadline date;
+BEGIN
+SELECT (CASE WHEN s = 1 THEN '2019-12-31' ELSE '2019-07-31' END) INTO newDeadline;
+INSERT INTO Completed
+SELECT accountID, moduleCode
+FROM Attends;
+DELETE FROM Attends;
+DELETE FROM Enrolls;
 DELETE FROM Teaches WHERE year = (SELECT year FROM CurrentAY) AND semNum = (SELECT semNum FROM CurrentAY);
 UPDATE CurrentAY SET year = y, semNum = s, registrationDeadline = newDeadline;
 END;
@@ -311,7 +354,7 @@ CALL add_student_account('e12349', '123', 'Jon', 1, false);
 CALL add_student_account('e12350', '123', 'Bij', 1, false);
 CALL add_student_account('e12351', '123', 'Pok', 6, true);
 CALL add_student_account('e12352', '123', 'Bun', 1, false);
-CALL add_student_account('e12353', '123', 'Dan', 1, false);
+CALL add_student_account('e12353', '123', 'Dan', 6, true);
 CALL add_student_account('e12354', '123', 'Voldemort', 5, true);
 CALL add_student_account('e12355', '123', 'Burg', 1, false);
 CALL add_student_account('e12356', '123', 'Saitama', 1, false);
@@ -340,10 +383,21 @@ INSERT INTO Courses VALUES ('CS201', 'Intro to Computational Bio', 'a012', false
 INSERT INTO Completed VALUES ('e12348', 'DS101');
 INSERT INTO Completed VALUES ('e12348', 'DS102');
 INSERT INTO Completed VALUES ('e12354', 'MG101');
+INSERT INTO Completed VALUES ('e12350', 'CS101');
+INSERT INTO Completed VALUES ('e12351', 'CS101');
+INSERT INTO Completed VALUES ('e12351', 'CS102');
 INSERT INTO Completed VALUES ('e12351', 'CS103');
+INSERT INTO Completed VALUES ('e12352', 'CS101');
+INSERT INTO Completed VALUES ('e12352', 'CS102');
+INSERT INTO Completed VALUES ('e12352', 'CS103');
+INSERT INTO Completed VALUES ('e12355', 'DS101');
+INSERT INTO Completed VALUES ('e12356', 'DS101');
+INSERT INTO Completed VALUES ('e12356', 'DS102');
 INSERT INTO Completed VALUES ('e12345', 'CS101');
 INSERT INTO Completed VALUES ('e12346', 'CS101');
 INSERT INTO Completed VALUES ('e12347', 'CS201');
+INSERT INTO Completed VALUES ('e12354', 'FC101');
+INSERT INTO Completed VALUES ('e12353', 'MG101');
 
 INSERT INTO Prerequisites VALUES ('CS102', 'CS101');
 INSERT INTO Prerequisites VALUES ('CS103', 'CS102');
