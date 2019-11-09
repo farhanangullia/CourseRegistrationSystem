@@ -343,6 +343,8 @@ DELETE FROM Attends;
 DELETE FROM Enrolls;
 DELETE FROM Teaches WHERE year = oldYear AND semNum = oldSemNum;
 UPDATE CurrentAY SET year = newYear, semNum = newSemNum, registrationDeadline = newDeadline;
+DELETE FROM Semesters WHERE year = oldYear AND semNum = oldSemNum;
+
 END;
 $$
 LANGUAGE plpgsql;
