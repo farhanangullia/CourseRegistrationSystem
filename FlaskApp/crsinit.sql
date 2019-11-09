@@ -274,7 +274,7 @@ SELECT year INTO currentYear
 FROM CurrentAY;
 SELECT semNum INTO currentSem
 FROM CurrentAY;
-SELECT moduleCode INTO newModule -- need add graduate constraints etc.
+SELECT moduleCode INTO newModule
 FROM Courses
 WHERE 
 NOT EXISTS (SELECT 1
@@ -286,6 +286,8 @@ AND
 (EXISTS (SELECT 1 FROM Teaches T WHERE Courses.moduleCode = T.moduleCode AND T.year = currentYear AND T.semNum = currentSem))
 AND
 (Courses.moduleCode NOT IN (SELECT moduleCode FROM Completed WHERE NEW.studentID = Completed.accountID))
+AND
+(Courses.moduleCode <> NEW.moduleCode)
 AND
 (Courses.moduleCode NOT IN (SELECT moduleCode FROM Attends WHERE NEW.studentID = Attends.accountID))
 AND
@@ -374,7 +376,7 @@ CALL add_student_account('e12345', '123', 'Sam', 2, 'egn', false);
 CALL add_student_account('e12346', '123', 'Bob', 2, 'egn', false);
 CALL add_student_account('e12347', '123', 'Jack', 3, 'sci', false);
 CALL add_student_account('e12348', '123', 'Dan', 4, 'sci', false);
-CALL add_student_account('e12349', '123', 'Jon', 1, 'fass', false);
+CALL add_student_account('e12349', '123', 'Jon', 2, 'fass', false);
 CALL add_student_account('e12350', '123', 'Bij', 1, 'soc', false);
 CALL add_student_account('e12351', '123', 'Pok', 6, 'soc', true);
 CALL add_student_account('e12352', '123', 'Bun', 1, 'soc', false);
@@ -393,6 +395,7 @@ CALL add_teacher_account('t013', '123', 'Prof Ahmad', 'soc', 2);
 CALL add_teacher_account('t011', '123', 'Prof Kong', 'soc', 3);
 CALL add_teacher_account('t010', '123', 'Prof Dude', 'lgng', 1);
 CALL add_teacher_account('t098', '123', 'Dumbledore', 'mgc', 1);
+CALL add_teacher_account('t099', '123', 'Prof Choo', 'fass', 1);
 
 INSERT INTO Courses VALUES ('CS101', 'Intro to Programming', 'soc', 'a003', false, 90, 90); -- oversubscribed
 INSERT INTO Courses VALUES ('CS102', 'Intermediate Programming', 'soc', 'a003', false, 70, 80);
@@ -403,6 +406,7 @@ INSERT INTO Courses VALUES ('FC101', 'French 1', 'lgng', 'a009', false, 50, 60);
 INSERT INTO Courses VALUES ('FC102', 'French 2', 'lgng', 'a012', false, 0, 50);
 INSERT INTO Courses VALUES ('MG101', 'Intro to Magic', 'mgc', 'a012', true, 3, 3); -- oversubscribed
 INSERT INTO Courses VALUES ('CS201', 'Intro to Computational Bio', 'soc', 'a012', false, 0, 20);
+INSERT INTO Courses VALUES ('PL101', 'Life, the Universe, and Everything', 'fass', 'a012', false, 0, 200);
 
 INSERT INTO Completed VALUES ('e12348', 'DS101');
 INSERT INTO Completed VALUES ('e12348', 'DS102');
@@ -424,6 +428,7 @@ INSERT INTO Completed VALUES ('e12347', 'CS102');
 INSERT INTO Completed VALUES ('e12347', 'CS201');
 INSERT INTO Completed VALUES ('e12354', 'FC101');
 INSERT INTO Completed VALUES ('e12353', 'MG101');
+INSERT INTO Completed VALUES ('e12349', 'PL101');
 
 INSERT INTO Prerequisites VALUES ('CS102', 'CS101');
 INSERT INTO Prerequisites VALUES ('CS103', 'CS102');
@@ -439,6 +444,8 @@ INSERT INTO Teaches VALUES('t012', 'DS102', 2020, 1);
 INSERT INTO Teaches VALUES('t010', 'FC101', 2020, 1);
 INSERT INTO Teaches VALUES('t010', 'FC102', 2020, 2);
 INSERT INTO Teaches VALUES('t098', 'MG101', 2020, 1);
+INSERT INTO Teaches VALUES('t099', 'PL101', 2020, 1);
+INSERT INTO Teaches VALUES('t099', 'PL101', 2020, 2);
 
 INSERT INTO Classes VALUES ('1', 'CS101');
 INSERT INTO Classes VALUES ('2', 'CS101');
@@ -467,6 +474,9 @@ INSERT INTO Classes VALUES ('3', 'MG101');
 INSERT INTO Classes VALUES ('1', 'CS201');
 INSERT INTO Classes VALUES ('2', 'CS201');
 INSERT INTO Classes VALUES ('3', 'CS201');
+INSERT INTO Classes VALUES ('1', 'PL101');
+INSERT INTO Classes VALUES ('2', 'PL101');
+INSERT INTO Classes VALUES ('3', 'PL101');
  
 INSERT INTO TA VALUES ('e12350', '1', 'CS101');
 INSERT INTO TA VALUES ('e12350', '2', 'CS101');
@@ -489,6 +499,9 @@ INSERT INTO TA VALUES ('e12354', '3', 'FC101');
 INSERT INTO TA VALUES ('e12353', '1', 'MG101');
 INSERT INTO TA VALUES ('e12353', '2', 'MG101');
 INSERT INTO TA VALUES ('e12353', '3', 'MG101');
+INSERT INTO TA VALUES ('e12349', '1', 'PL101');
+INSERT INTO TA VALUES ('e12349', '2', 'PL101');
+INSERT INTO TA VALUES ('e12349', '3', 'PL101');
 
 CALL add_enrollment('e12348', 'CS101');
 CALL add_enrollment('e12350', 'DS101');
