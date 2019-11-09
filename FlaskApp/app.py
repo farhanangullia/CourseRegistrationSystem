@@ -11,14 +11,10 @@ from sqlalchemy.orm import create_session
 from sqlalchemy import create_engine
 from sqlalchemy import text
 
-# from views import view
-
 app = Flask(__name__)
 
 CORS(app)
 
-# Routing
-# app.register_blueprint(view)
 
 
 # Config
@@ -114,37 +110,16 @@ def registerCourse():
     print("registerCourse")
     print(accountid)
     print(modulecode)
-    # query = "SELECT * FROM users WHERE uname = '{}' AND pass = '{}'".format(username,password)
-    # add_enrollment(id varchar(50), mod varchar(50))
-    
+
     try:
-        print("debug 1")
-        # method 1
-        # db.session.execute(text("CALL add_enrollment(:param,:param2)"), {"param":accountid,"param2":modulecode})
-        # method 2 Not working
-        # db.session.execute("CALL add_enrollment('{}','{}')".format(accountid,modulecode))
-        # db.engine.raw_connection().commit()
 
-
-        # method 3
         conn = db.engine.raw_connection()
         cursor = conn.cursor()
         cursor.execute("CALL add_enrollment('{}', '{}');".format(accountid,modulecode))
         cursor.close()
         conn.commit()
 
-        # # do the call. The actual parameter does not matter, could be ['lala'] as well
-        # results = conn.cursor().callproc('add_enrollment', ['e12348','FC101'])
-        # conn.close()   # commit
 
-        # conn.cursor().execute("CALL switch_to_new_semester(2021, 1);")
-
-
-        # print(results) # will print (<out param result>)
-        print("debug 2")
-        # query = "SELECT * FROM courses;"
-        # courses = db.session.execute(query)
-        # print(result)
         
         return jsonify({"status":"success"})
     except SQLAlchemyError as e:
@@ -183,8 +158,8 @@ def retrieveBypassRequests():
     print(req_data)
     print("retrieveMyStudentCourses")
     query = """WITH P AS
-(SELECT accountID AS studentID, departmentID, year * (count(moduleCode) + 1) AS n
-FROM Students NATURAL LEFT JOIN Completed
+(SELECT accountID AS studentID, departmentID, year * (100 / (1 + count(moduleCode))) AS n
+FROM Students NATURAL LEFT JOIN Attends
 GROUP BY accountID, year)
 SELECT Bypasses.studentID, moduleCode, name AS moduleName, currentSize, quota, n * (CASE WHEN Courses.departmentID = P.departmentID THEN 2 ELSE 1 END) AS priority
 FROM Bypasses NATURAL JOIN Courses INNER JOIN P ON Bypasses.studentID = P.studentID
@@ -239,13 +214,13 @@ def retrieveStudentProfile():
 def retrieveStudentClasses():
     req_data = request.get_json()
     accountid = req_data['accountid']
-    query = """SELECT classID, moduleCode,'Student' AS role
-FROM Attends
-WHERE '{0}' = accountID
+    query = """SELECT 'Student' AS role, classID, Teaches.moduleCode, Teachers.name, roomID
+FROM ((Teachers INNER JOIN Teaches ON Teachers.accountID = Teaches.teacherID) NATURAL JOIN CurrentAY) INNER JOIN Attends ON Teaches.moduleCode = Attends.moduleCode
+WHERE '{0}' = Attends.accountID
 UNION
-SELECT classID, moduleCode, 'Teaching assistant' AS role
-FROM TA
-WHERE '{0}' = accountID;""".format(accountid)
+SELECT 'Teaching assistant' AS role, classID, Teaches.moduleCode, Teachers.name, roomID
+FROM ((Teachers INNER JOIN Teaches ON Teachers.accountID = Teaches.teacherID) NATURAL JOIN CurrentAY) INNER JOIN TA ON Teaches.moduleCode = TA.moduleCode
+WHERE '{0}' = TA.accountID;""".format(accountid)
     classes = db.session.execute(query)
     d, a = {}, []
     for rowproxy in classes:
@@ -334,6 +309,25 @@ def retrieveTeacherCourses():
     return jsonify(a)
 
 
+@app.route("/updateCurrentAY", methods=["POST"])
+def updateCurrentAY():
+    print("updateCurrentAY")
+    
+    try:
+        conn = db.engine.raw_connection()
+        cursor = conn.cursor()
+        cursor.execute("CALL switch_to_new_semester();")
+        cursor.close()
+        conn.commit()
+
+        return jsonify({"status":"success"})
+    except SQLAlchemyError as e:
+        print("ERROR")
+        print(e)
+        response = jsonify({"error":e})
+   
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    return response
 
 @app.route("/testSP", methods=["GET"])
 def testSP():
@@ -348,13 +342,6 @@ def testSP():
         print(e)
 
 
-# query parameters for GET
-# @app.route("/login", methods=["GET"])
-# def login():
-#     username  = request.args.get('username', None)
-#     password  = request.args.get('password', None)
-#     query = "SELECT * FROM web_user WHERE username = '{}'".format(username)
-#     exists_user = db.session.execute(query).fetchone()
 
 
 if __name__ == "__main__":
