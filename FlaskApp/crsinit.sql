@@ -287,9 +287,12 @@ AND
 AND
 (Courses.moduleCode NOT IN (SELECT moduleCode FROM Completed WHERE NEW.studentID = Completed.accountID))
 AND
+(Courses.moduleCode NOT IN (SELECT moduleCode FROM Attends WHERE NEW.studentID = Attends.accountID))
+AND
 (SELECT isGraduate FROM Students WHERE NEW.studentID = Students.accountID) = Courses.isGraduateCourse
 ORDER BY currentSize ASC
 LIMIT 1;
+DELETE FROM Enrolls WHERE NEW.studentID = Enrolls.accountID AND newModule = Enrolls.moduleCode;
 INSERT INTO Enrolls VALUES(NEW.studentID, newModule, CURRENT_DATE, TRUE);
 END IF;
 RETURN NEW;
