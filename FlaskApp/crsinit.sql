@@ -146,7 +146,7 @@ CREATE TABLE TA (
     accountID varchar(50),
     classID int,
     moduleCode varchar(50),
-    PRIMARY KEY(accountID, classID, moduleCode),
+    PRIMARY KEY(classID, moduleCode),
     FOREIGN KEY(accountID) REFERENCES Students,
     FOREIGN KEY(classID, moduleCode) REFERENCES Classes
 );
@@ -230,7 +230,7 @@ SELECT adminID INTO adID
 FROM Courses
 WHERE NEW.moduleCode = Courses.moduleCode;
 SELECT classID INTO classNum
-FROM Classes
+FROM Classes NATURAL JOIN TA
 WHERE NEW.moduleCode = Classes.moduleCode
 ORDER BY currentSize ASC, classID ASC
 LIMIT 1;
