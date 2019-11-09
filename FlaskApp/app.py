@@ -39,7 +39,7 @@ def login():
     accountid = req_data['accountid']
     password = req_data['password']
     print("checking db for login")
-    # query = "SELECT * FROM users WHERE uname = '{}' AND pass = '{}'".format(username,password)
+    # Checks if user and password match in DB and returns type of student based on case conditions
     query = "SELECT AC.accountID, CASE WHEN EXISTS(SELECT 1 FROM administrators a WHERE a.accountid = AC.accountid) THEN 'admin' WHEN EXISTS(SELECT 1 FROM students s WHERE s.accountid = AC.accountid) THEN 'student' ELSE 'teacher' END AS Type FROM accounts AC WHERE AC.accountid = '{}' AND AC.password = '{}';".format(accountid,password)
     user = db.session.execute(query).fetchone()
     print(user)
@@ -94,15 +94,13 @@ def registerCourse():
     print(modulecode)
 
     try:
-
+        # CALL stored procedure
         conn = db.engine.raw_connection()
         cursor = conn.cursor()
         cursor.execute("CALL add_enrollment('{}', '{}');".format(accountid,modulecode))
         cursor.close()
         conn.commit()
 
-
-        
         return jsonify({"status":"success"})
     except SQLAlchemyError as e:
         print("ERROR")
@@ -294,7 +292,7 @@ def retrieveTeacherCourses():
 @app.route("/updateCurrentAY", methods=["POST"])
 def updateCurrentAY():
     print("updateCurrentAY")
-    
+    # CALL stored procedure
     try:
         conn = db.engine.raw_connection()
         cursor = conn.cursor()
