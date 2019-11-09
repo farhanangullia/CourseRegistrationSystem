@@ -321,26 +321,42 @@ BEFORE INSERT OR UPDATE ON TA
 FOR EACH ROW
 EXECUTE PROCEDURE allow_TA_entry_if_valid();
 
-CREATE OR REPLACE PROCEDURE switch_to_new_semester(y int, s int)
+CREATE OR REPLACE PROCEDURE switch_to_new_semester()
 AS $$
+DECLARE oldYear int;
+DECLARE oldSemNum int;
 DECLARE newDeadline date;
+DECLARE newYear int;
+DECLARE newSemNum int;
 BEGIN
-SELECT (CASE WHEN s = 1 THEN '2019-12-31' ELSE '2019-07-31' END) INTO newDeadline;
+SELECT year INTO oldYear
+FROM CurrentAY;
+SELECT semNum INTO oldSemNum
+FROM CurrentAY;
+SELECT (CASE WHEN oldSemNum = 2 THEN oldYear + 1 ELSE oldYear END) INTO newYear;
+SELECT (CASE WHEN oldSemNum = 1 THEN 2 ELSE 1 END) INTO newSemNum;
+SELECT (CASE WHEN newSemNum = 1 THEN newYear || '-12-31' ELSE newYear || '-07-31' END) INTO newDeadline;
 INSERT INTO Completed
 SELECT accountID, moduleCode
 FROM Attends;
 DELETE FROM Attends;
 DELETE FROM Enrolls;
-DELETE FROM Teaches WHERE year = (SELECT year FROM CurrentAY) AND semNum = (SELECT semNum FROM CurrentAY);
-UPDATE CurrentAY SET year = y, semNum = s, registrationDeadline = newDeadline;
+DELETE FROM Teaches WHERE year = oldYear AND semNum = oldSemNum;
+UPDATE CurrentAY SET year = newYear, semNum = newSemNum, registrationDeadline = newDeadline;
 END;
 $$
 LANGUAGE plpgsql;
 
-INSERT INTO SEMESTERS VALUES (1920, 2);
+INSERT INTO SEMESTERS VALUES (2020, 1);
+INSERT INTO SEMESTERS VALUES (2020, 2);
 INSERT INTO SEMESTERS VALUES (2021, 1);
+INSERT INTO SEMESTERS VALUES (2021, 2);
+INSERT INTO SEMESTERS VALUES (2022, 1);
+INSERT INTO SEMESTERS VALUES (2022, 2);
+INSERT INTO SEMESTERS VALUES (2023, 1);
+INSERT INTO SEMESTERS VALUES (2023, 2);
 
-INSERT INTO CurrentAY VALUES ('X', 1920, 2, '2019-12-31');
+INSERT INTO CurrentAY VALUES ('X', 2020, 1, '2020-07-31');
 
 INSERT INTO Departments VALUES ('soc', 'Computing');
 INSERT INTO Departments VALUES ('egn', 'Engin');
@@ -411,14 +427,14 @@ INSERT INTO Prerequisites VALUES ('CS201', 'CS102');
 INSERT INTO Prerequisites VALUES ('DS102', 'DS101');
 INSERT INTO Prerequisites VALUES ('FC102', 'FC101');
 
-INSERT INTO Teaches VALUES('t011', 'CS101', 1920, 2);
-INSERT INTO Teaches VALUES('t012', 'CS102', 1920, 2);
-INSERT INTO Teaches VALUES('t013', 'CS103', 1920, 2);
-INSERT INTO Teaches VALUES('t011', 'DS101', 1920, 2);
-INSERT INTO Teaches VALUES('t012', 'DS102', 1920, 2);
-INSERT INTO Teaches VALUES('t010', 'FC101', 1920, 2);
-INSERT INTO Teaches VALUES('t010', 'FC102', 2021, 1);
-INSERT INTO Teaches VALUES('t098', 'MG101', 1920, 2);
+INSERT INTO Teaches VALUES('t011', 'CS101', 2020, 1);
+INSERT INTO Teaches VALUES('t012', 'CS102', 2020, 1);
+INSERT INTO Teaches VALUES('t013', 'CS103', 2020, 1);
+INSERT INTO Teaches VALUES('t011', 'DS101', 2020, 1);
+INSERT INTO Teaches VALUES('t012', 'DS102', 2020, 1);
+INSERT INTO Teaches VALUES('t010', 'FC101', 2020, 1);
+INSERT INTO Teaches VALUES('t010', 'FC102', 2020, 2);
+INSERT INTO Teaches VALUES('t098', 'MG101', 2020, 1);
 
 INSERT INTO Classes VALUES ('1', 'CS101');
 INSERT INTO Classes VALUES ('2', 'CS101');
