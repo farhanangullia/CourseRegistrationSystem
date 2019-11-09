@@ -14,10 +14,14 @@ DROP TABLE IF EXISTS TA CASCADE;
 DROP TABLE IF EXISTS Departments CASCADE;
 DROP TABLE IF EXISTS Semesters CASCADE;
 DROP TABLE IF EXISTS CurrentAY CASCADE;
-DROP PROCEDURE IF EXISTS add_student_account(id varchar(50), password varchar(50), name varchar(50), year int, isGraduate boolean) CASCADE;
-DROP PROCEDURE IF EXISTS add_admin_account(id varchar(50), password varchar(50), name varchar(50)) CASCADE;
-DROP PROCEDURE IF EXISTS add_teacher_account(id varchar(50), password varchar(50), name varchar(50), departmentID varchar(50)) CASCADE;
-DROP PROCEDURE IF EXISTS switch_to_new_semester(y int, s int) CASCADE;
+DROP PROCEDURE IF EXISTS add_student_account CASCADE; --(id varchar(50), password varchar(50), name varchar(50), year int, isGraduate boolean) CASCADE;
+DROP PROCEDURE IF EXISTS add_admin_account CASCADE; --(id varchar(50), password varchar(50), name varchar(50)) CASCADE;
+DROP PROCEDURE IF EXISTS add_teacher_account CASCADE; --(id varchar(50), password varchar(50), name varchar(50), departmentID varchar(50), roomID varchar(50)) CASCADE;
+DROP PROCEDURE IF EXISTS switch_to_new_semester CASCADE; --(y int, s int) CASCADE;
+-- DROP PROCEDURE IF EXISTS add_student_account(id varchar(50), password varchar(50), name varchar(50), year int, isGraduate boolean) CASCADE;
+-- DROP PROCEDURE IF EXISTS add_admin_account(id varchar(50), password varchar(50), name varchar(50)) CASCADE;
+-- DROP PROCEDURE IF EXISTS add_teacher_account(id varchar(50), password varchar(50), name varchar(50), departmentID varchar(50), roomID varchar(50)) CASCADE;
+-- DROP PROCEDURE IF EXISTS switch_to_new_semester(y int, s int) CASCADE;
 BEGIN;
 CREATE TABLE Departments (
     departmentID varchar(50) PRIMARY KEY,
@@ -56,6 +60,7 @@ CREATE TABLE Teachers (
     accountID varchar(50) PRIMARY KEY,
     name varchar(50) NOT NULL,
     departmentID varchar(50) NOT NULL,
+    roomID int NOT NULL,
     FOREIGN KEY(accountID) REFERENCES Accounts,
     FOREIGN KEY(departmentID) REFERENCES Departments
 );
@@ -93,7 +98,7 @@ CREATE TABLE Teaches (
     moduleCode varchar(50),
     year int,
     semNum int,
-    PRIMARY KEY(teacherID, moduleCode, year, semNum),
+    PRIMARY KEY(moduleCode, year, semNum),
     FOREIGN KEY(teacherID) REFERENCES Teachers(accountID),
     FOREIGN KEY(moduleCode) REFERENCES Courses,
     FOREIGN KEY(year, semNum) REFERENCES Semesters
@@ -102,6 +107,7 @@ CREATE TABLE Teaches (
 CREATE TABLE Classes (
     classID int,
     moduleCode varchar(50),
+    currentSize int NOT NULL DEFAULT 0,
     PRIMARY KEY(classID, moduleCode),
     FOREIGN KEY(moduleCode) REFERENCES Courses ON DELETE CASCADE
 );
@@ -181,13 +187,13 @@ END;
 $$
 LANGUAGE plpgsql;
 
-CREATE OR REPLACE PROCEDURE add_teacher_account(id varchar(50), password varchar(50), name varchar(50), departmentID varchar(50))
+CREATE OR REPLACE PROCEDURE add_teacher_account(id varchar(50), password varchar(50), name varchar(50), departmentID varchar(50), roomID int)
 AS $$
 BEGIN
 IF id NOT IN (SELECT accountID FROM Administrators) AND id NOT IN (SELECT accountID FROM Students)
 THEN
 INSERT INTO Accounts VALUES (id, password);
-INSERT INTO Teachers VALUES (id, name, departmentID);
+INSERT INTO Teachers VALUES (id, name, departmentID, roomID);
 ELSE
 END IF;
 END;
@@ -223,7 +229,11 @@ RAISE NOTICE 'CHECKING IF BYPASS IS NEEDED';
 SELECT adminID INTO adID
 FROM Courses
 WHERE NEW.moduleCode = Courses.moduleCode;
-SELECT floor(random() * (3) + 1)::int INTO classNum;
+SELECT classID INTO classNum
+FROM Classes
+WHERE NEW.moduleCode = Classes.moduleCode
+ORDER BY currentSize ASC, classID ASC
+LIMIT 1;
 IF NEW.isSuccess IS NULL THEN
 RAISE NOTICE 'BYPASS IS NEEDED';
 INSERT INTO Bypasses VALUES (NEW.accountID, NEW.moduleCode, adID);
@@ -231,6 +241,7 @@ ELSIF NEW.isSuccess = TRUE THEN
 RAISE NOTICE 'BYPASS IS NOT NEEDED, STUDENT CAN ATTEND';
 INSERT INTO Attends VALUES (NEW.accountID, classNum, NEW.moduleCode);
 UPDATE Courses SET currentSize = currentSize + 1 WHERE moduleCode = NEW.moduleCode;
+UPDATE Classes SET currentSize = currentSize + 1 WHERE classID = classNum AND moduleCode = NEW.moduleCode;
 END IF;
 RETURN NULL;
 END;
@@ -263,7 +274,7 @@ SELECT year INTO currentYear
 FROM CurrentAY;
 SELECT semNum INTO currentSem
 FROM CurrentAY;
-SELECT moduleCode INTO newModule
+SELECT moduleCode INTO newModule -- need add graduate constraints etc.
 FROM Courses
 WHERE 
 NOT EXISTS (SELECT 1
@@ -271,7 +282,12 @@ FROM (SELECT * FROM Completed WHERE NEW.studentID = Completed.accountID) AS C RI
 ON C.moduleCode = P.prereq
 WHERE Courses.moduleCode = P.moduleCode
 AND C.accountID IS NULL)
-AND (EXISTS (SELECT 1 FROM Teaches T WHERE Courses.moduleCode = T.moduleCode AND T.year = currentYear AND T.semNum = currentSem))
+AND
+(EXISTS (SELECT 1 FROM Teaches T WHERE Courses.moduleCode = T.moduleCode AND T.year = currentYear AND T.semNum = currentSem))
+AND
+(Courses.moduleCode NOT IN (SELECT moduleCode FROM Completed WHERE NEW.studentID = Completed.accountID))
+AND
+(SELECT isGraduate FROM Students WHERE NEW.studentID = Students.accountID) = Courses.isGraduateCourse
 ORDER BY currentSize ASC
 LIMIT 1;
 INSERT INTO Enrolls VALUES(NEW.studentID, newModule, CURRENT_DATE, TRUE);
@@ -321,22 +337,6 @@ END;
 $$
 LANGUAGE plpgsql;
 
-CREATE OR REPLACE PROCEDURE switch_to_new_semester(y int, s int)
-AS $$
-DECLARE newDeadline date;
-BEGIN
-SELECT (CASE WHEN s = 1 THEN '2019-12-31' ELSE '2019-07-31' END) INTO newDeadline;
-INSERT INTO Completed
-SELECT accountID, moduleCode
-FROM Attends;
-DELETE FROM Attends;
-DELETE FROM Enrolls;
-DELETE FROM Teaches WHERE year = (SELECT year FROM CurrentAY) AND semNum = (SELECT semNum FROM CurrentAY);
-UPDATE CurrentAY SET year = y, semNum = s, registrationDeadline = newDeadline;
-END;
-$$
-LANGUAGE plpgsql;
-
 INSERT INTO SEMESTERS VALUES (1920, 2);
 INSERT INTO SEMESTERS VALUES (2021, 1);
 
@@ -368,11 +368,11 @@ CALL add_admin_account('a009', '123', 'Laksa');
 CALL add_admin_account('a003', '123', 'Moon');
 CALL add_admin_account('a012', '123', 'Crayfish');
 
-CALL add_teacher_account('t012', '123', 'Prof Lim', 'soc');
-CALL add_teacher_account('t013', '123', 'Prof Ahmad', 'soc'); 
-CALL add_teacher_account('t011', '123', 'Prof Kong', 'soc');
-CALL add_teacher_account('t010', '123', 'Prof Dude', 'lgng');
-CALL add_teacher_account('t098', '123', 'Dumbledore', 'mgc');
+CALL add_teacher_account('t012', '123', 'Prof Lim', 'soc', 1);
+CALL add_teacher_account('t013', '123', 'Prof Ahmad', 'soc', 2); 
+CALL add_teacher_account('t011', '123', 'Prof Kong', 'soc', 3);
+CALL add_teacher_account('t010', '123', 'Prof Dude', 'lgng', 1);
+CALL add_teacher_account('t098', '123', 'Dumbledore', 'mgc', 1);
 
 INSERT INTO Courses VALUES ('CS101', 'Intro to Programming', 'soc', 'a003', false, 90, 90); -- oversubscribed
 INSERT INTO Courses VALUES ('CS102', 'Intermediate Programming', 'soc', 'a003', false, 70, 80);
@@ -469,3 +469,8 @@ INSERT INTO TA VALUES ('e12354', '3', 'FC101');
 INSERT INTO TA VALUES ('e12353', '1', 'MG101');
 INSERT INTO TA VALUES ('e12353', '2', 'MG101');
 INSERT INTO TA VALUES ('e12353', '3', 'MG101');
+
+CALL add_enrollment('e12348', 'CS101');
+CALL add_enrollment('e12350', 'DS101');
+CALL add_enrollment('e12355', 'FC101');
+CALL add_enrollment('e12348', 'FC101');
