@@ -80,8 +80,8 @@ def retrieveCoursesForRegistration():
     accountid = req_data['accountid']
     print(req_data)
     print("retrieveCoursesForRegistration")
-    query = """SELECT moduleCode, name, currentSize, quota
-FROM Courses C
+    query = """SELECT moduleCode, name, departmentID, currentSize, quota
+FROM Courses C 
 WHERE CURRENT_DATE <= (SELECT registrationDeadline FROM CurrentAY)
 AND
 (EXISTS (SELECT 1 FROM Teaches T WHERE C.moduleCode = T.moduleCode AND T.year = (SELECT year FROM CurrentAY) AND T.semNum = (SELECT semNum FROM CurrentAY)))
@@ -93,8 +93,7 @@ WHERE C.moduleCode = P.moduleCode
 AND Cm.accountID IS NULL))
 AND
 (C.moduleCode NOT IN (SELECT moduleCode FROM Completed WHERE '{0}' = Completed.accountID))
-AND (SELECT isGraduate FROM Students WHERE '{0}' = Students.accountID) = C.isGraduateCourse;
-""".format(accountid)
+AND (SELECT isGraduate FROM Students WHERE '{0}' = Students.accountID) = C.isGraduateCourse;""".format(accountid)
     courses = db.session.execute(query)
     # print(courses)
     d, a = {}, []
@@ -163,7 +162,7 @@ def retrieveMyStudentCourses():
     accountid = req_data['accountid']
     print(req_data)
     print("retrieveMyStudentCourses")
-    query = "SELECT moduleCode,name,currentSize FROM Attends NATURAL JOIN courses WHERE accountid = '{}';".format(accountid)
+    query = "SELECT moduleCode,name,departmentID,currentSize,quota FROM Attends NATURAL JOIN courses WHERE accountid = '{}';".format(accountid)
     courses = db.session.execute(query)
     # print(courses)
     d, a = {}, []
@@ -184,12 +183,12 @@ def retrieveBypassRequests():
     print(req_data)
     print("retrieveMyStudentCourses")
     query = """WITH P AS
-(SELECT accountID AS studentID, year * count(*) AS priority
+(SELECT accountID AS studentID, departmentID, year * (count(moduleCode) + 1) AS n
 FROM Students NATURAL LEFT JOIN Completed
 GROUP BY accountID, year)
-SELECT studentID, moduleCode, name AS moduleName, currentSize, quota, priority
-FROM Bypasses NATURAL JOIN Courses NATURAL JOIN P
-WHERE isBypassed IS NULL AND '{}'= Bypasses.adminID
+SELECT Bypasses.studentID, moduleCode, name AS moduleName, currentSize, quota, n * (CASE WHEN Courses.departmentID = P.departmentID THEN 2 ELSE 1 END) AS priority
+FROM Bypasses NATURAL JOIN Courses INNER JOIN P ON Bypasses.studentID = P.studentID
+WHERE isBypassed IS NULL AND '{}' = Bypasses.adminID
 ORDER BY priority DESC;""".format(accountid)
     bypassRequests = db.session.execute(query)
     # print(courses)
@@ -208,9 +207,11 @@ def updateBypassRequest():
     req_data = request.get_json()
     studentid = req_data['studentid']
     isBypassed = req_data['isBypassed']
+    modulecode = req_data['modulecode']
     print(req_data)
     print("updateBypassRequest")
-    query = """UPDATE Bypasses SET isBypassed = {} WHERE '{}'= Bypasses.studentID;""".format(isBypassed,studentid)
+    
+    query = """UPDATE Bypasses SET isBypassed = {} WHERE '{}'= Bypasses.studentID AND '{}' = Bypasses.moduleCode;""".format(isBypassed,studentid,modulecode)
     conn = db.engine.raw_connection()
     cursor = conn.cursor()
     cursor.execute(query)
@@ -218,6 +219,119 @@ def updateBypassRequest():
     conn.commit()
     response = jsonify({"status":"success"})
     return response
+
+@app.route("/retrieveStudentProfile", methods=["POST"])
+def retrieveStudentProfile():
+    req_data = request.get_json()
+    accountid = req_data['accountid']
+    query = "SELECT * FROM Students WHERE accountID = '{}';".format(accountid)
+    profile = db.session.execute(query).fetchone()
+    print(profile)
+    d = {}
+    # rowproxy.items() returns an array like [(key0, value0), (key1, value1)]
+    for column, value in profile.items():
+        # build up the dictionary
+        d = {**d, **{column: value}}
+    print(d)
+    return jsonify(d)
+
+@app.route("/retrieveStudentClasses", methods=["POST"])
+def retrieveStudentClasses():
+    req_data = request.get_json()
+    accountid = req_data['accountid']
+    query = """SELECT classID, moduleCode,'Student' AS role
+FROM Attends
+WHERE '{0}' = accountID
+UNION
+SELECT classID, moduleCode, 'Teaching assistant' AS role
+FROM TA
+WHERE '{0}' = accountID;""".format(accountid)
+    classes = db.session.execute(query)
+    d, a = {}, []
+    for rowproxy in classes:
+        # rowproxy.items() returns an array like [(key0, value0), (key1, value1)]
+        for column, value in rowproxy.items():
+            # build up the dictionary
+            d = {**d, **{column: value}}
+        a.append(d)
+    return jsonify(a)
+
+@app.route("/retrieveStudentCompletedModules", methods=["POST"])
+def retrieveStudentCompletedModules():
+    req_data = request.get_json()
+    accountid = req_data['accountid']
+    query = "SELECT moduleCode, name FROM Completed NATURAL JOIN Courses WHERE accountId = '{}';".format(accountid)
+    completedModules = db.session.execute(query)
+    d, a = {}, []
+    for rowproxy in completedModules:
+        # rowproxy.items() returns an array like [(key0, value0), (key1, value1)]
+        for column, value in rowproxy.items():
+            # build up the dictionary
+            d = {**d, **{column: value}}
+        a.append(d)
+    return jsonify(a)
+
+
+@app.route("/retrieveAdminProfile", methods=["POST"])
+def retrieveAdminProfile():
+    req_data = request.get_json()
+    accountid = req_data['accountid']
+    query = "SELECT accountID, name, (SELECT year FROM CurrentAY), (SELECT semNum FROM CurrentAY)  FROM Administrators WHERE accountID = '{}';".format(accountid)
+    profile = db.session.execute(query).fetchone()
+    print(profile)
+    d = {}
+    # rowproxy.items() returns an array like [(key0, value0), (key1, value1)]
+    for column, value in profile.items():
+        # build up the dictionary
+        d = {**d, **{column: value}}
+    print(d)
+    return jsonify(d)
+
+@app.route("/retrieveAdminCourses", methods=["POST"])
+def retrieveAdminCourses():
+    req_data = request.get_json()
+    accountid = req_data['accountid']
+    query = "SELECT moduleCode, name, departmentID FROM Courses WHERE adminID = '{}';".format(accountid)
+    admincourses = db.session.execute(query)
+    d, a = {}, []
+    for rowproxy in admincourses:
+        # rowproxy.items() returns an array like [(key0, value0), (key1, value1)]
+        for column, value in rowproxy.items():
+            # build up the dictionary
+            d = {**d, **{column: value}}
+        a.append(d)
+    return jsonify(a)
+
+@app.route("/retrieveTeacherProfile", methods=["POST"])
+def retrieveTeacherProfile():
+    req_data = request.get_json()
+    accountid = req_data['accountid']
+    query = "SELECT * FROM Teachers WHERE '{}' = Teachers.accountID;".format(accountid)
+    profile = db.session.execute(query).fetchone()
+    print(profile)
+    d = {}
+    # rowproxy.items() returns an array like [(key0, value0), (key1, value1)]
+    for column, value in profile.items():
+        # build up the dictionary
+        d = {**d, **{column: value}}
+    print(d)
+    return jsonify(d)
+
+
+@app.route("/retrieveTeacherCourses", methods=["POST"])
+def retrieveTeacherCourses():
+    req_data = request.get_json()
+    accountid = req_data['accountid']
+    query = "SELECT moduleCode, name, semnum, year FROM Teaches NATURAL JOIN Courses WHERE teacherid = '{}';".format(accountid)
+    teachercourses = db.session.execute(query)
+    d, a = {}, []
+    for rowproxy in teachercourses:
+        # rowproxy.items() returns an array like [(key0, value0), (key1, value1)]
+        for column, value in rowproxy.items():
+            # build up the dictionary
+            d = {**d, **{column: value}}
+        a.append(d)
+    return jsonify(a)
 
 
 
