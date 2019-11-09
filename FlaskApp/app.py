@@ -33,24 +33,6 @@ db.init_app(app)
 login_manager.init_app(app)
 
 
-
-# For resultproxy = db_session.execute(query)
-# d, a = {}, []
-# for rowproxy in resultproxy:
-#     # rowproxy.items() returns an array like [(key0, value0), (key1, value1)]
-#     for column, value in rowproxy.items():
-#         # build up the dictionary
-#         d = {**d, **{column: value}}
-#     a.append(d)
-
-# For resultproxy = db_session.execute(query).fetchone()
-# d = {}
-# for column, value in rowproxy.items():
-#         # build up the dictionary
-#   d = {**d, **{column: value}}
-
-
-
 @app.route("/login", methods=["POST"])
 def login():
     req_data = request.get_json()
@@ -328,20 +310,6 @@ def updateCurrentAY():
    
     response.headers.add('Access-Control-Allow-Origin', '*')
     return response
-
-@app.route("/testSP", methods=["GET"])
-def testSP():
-    x = 2019
-    y = 1
-    try:
-        result = db.session.execute("SELECT switch_to_new_semester({},{})".format(x,y)).fetchone()
-        print(result)
-        print("success")
-    except SQLAlchemyError as e:
-        print("ERROR")
-        print(e)
-
-
 
 
 if __name__ == "__main__":
