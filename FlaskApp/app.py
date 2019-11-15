@@ -157,7 +157,7 @@ ORDER BY priority DESC;""".format(accountid)
     # print(a)
     return jsonify(a)
 
-@app.route("/updatxeBypassRequest", methods=["POST"])
+@app.route("/updateBypassRequest", methods=["POST"])
 def updateBypassRequest():
     req_data = request.get_json()
     studentid = req_data['studentid']
