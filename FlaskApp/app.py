@@ -157,7 +157,7 @@ ORDER BY priority DESC;""".format(accountid)
     # print(a)
     return jsonify(a)
 
-@app.route("/updateBypassRequest", methods=["POST"])
+@app.route("/updatxeBypassRequest", methods=["POST"])
 def updateBypassRequest():
     req_data = request.get_json()
     studentid = req_data['studentid']
@@ -300,7 +300,54 @@ def updateCurrentAY():
         cursor.close()
         conn.commit()
 
-        return jsonify({"status":"success"})
+        response = jsonify({"status":"success"})
+    except SQLAlchemyError as e:
+        print("ERROR")
+        print(e)
+        response = jsonify({"error":e})
+   
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    return response
+
+@app.route("/createCourse", methods=["POST"])
+def createCourse():
+    req_data = request.get_json()
+    accountid = req_data['accountid']
+    modulecode = req_data['modulecode']
+    modulename = req_data['modulename']
+    departmentid = req_data['departmentid']
+    isgraduatecourse = req_data['isgraduatecourse']
+    quota = int(req_data['quota'])
+    prerequisite = req_data['prerequisite']
+    teacherid = req_data['teacherid']
+    if('graduate'== isgraduatecourse.lower()):
+        isgraduatecourse = True
+    else:
+        isgraduatecourse = False
+
+    print(isgraduatecourse)
+    try:
+        conn = db.engine.raw_connection()
+        cursor = conn.cursor()
+        cursor.execute("INSERT INTO Courses VALUES ('{}', '{}', '{}', '{}', {}, 0, {});".format(modulecode,modulename,departmentid,accountid,isgraduatecourse,quota))
+        cursor.close()
+        conn.commit()
+
+        conn = db.engine.raw_connection()
+        cursor = conn.cursor()
+        cursor.execute("INSERT INTO Prerequisites VALUES ('{}', '{}');".format(modulecode,prerequisite))
+        cursor.close()
+        conn.commit()
+
+        query = "SELECT * FROM currentay;"
+        currentAY = db.session.execute(query).fetchone()
+
+        conn = db.engine.raw_connection()
+        cursor = conn.cursor()
+        cursor.execute("INSERT INTO Teaches VALUES('{}', '{}', {}, {});".format(teacherid,modulecode,currentAY[1],currentAY[2]))
+        cursor.close()
+        conn.commit()
+        response = jsonify({"status":"success"})
     except SQLAlchemyError as e:
         print("ERROR")
         print(e)
